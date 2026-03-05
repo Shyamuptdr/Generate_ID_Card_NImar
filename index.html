@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JIT Bulk ID Generator</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      /* --- RESET & BASIC SETUP --- */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+      body {
+        background-color: #f4f6f9;
+        padding: 20px;
+      }
+
+      /* --- INPUT FORM SECTION (Hidden when printing) --- */
+      .controls {
+        max-width: 1000px;
+        margin: 0 auto 30px auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        display: flex;
+        gap: 20px;
+      }
+
+      .input-area {
+        flex: 1;
+        border-right: 1px solid #ddd;
+        padding-right: 20px;
+      }
+      .list-area {
+        flex: 1;
+        padding-left: 20px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      h2 {
+        color: #2c55a3;
+        margin-bottom: 15px;
+        font-size: 18px;
+        text-transform: uppercase;
+        border-bottom: 2px solid #2c55a3;
+        padding-bottom: 5px;
+        display: inline-block;
+      }
+
+      .form-row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .input-group {
+        flex: 1;
+      }
+      .input-group label {
+        display: block;
+        font-size: 12px;
+        font-weight: bold;
+        color: #555;
+        margin-bottom: 4px;
+      }
+      .input-group input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+
+      button {
+        cursor: pointer;
+        padding: 10px;
+        border: none;
+        border-radius: 4px;
+        font-weight: bold;
+        transition: 0.2s;
+      }
+      .btn-add {
+        background: #2c55a3;
+        color: white;
+        width: 100%;
+        margin-top: 5px;
+      }
+      .btn-add:hover {
+        background: #1a3a7a;
+      }
+      .btn-print {
+        background: #28a745;
+        color: white;
+        margin-top: auto;
+        font-size: 16px;
+        padding: 12px;
+      }
+      .btn-reset {
+        background: #dc3545;
+        color: white;
+        margin-top: 10px;
+      }
+
+      /* LIST TABLE */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        margin-top: 10px;
+      }
+      th {
+        background: #f0f0f0;
+        padding: 6px;
+        text-align: left;
+        color: #333;
+      }
+      td {
+        border-bottom: 1px solid #eee;
+        padding: 6px;
+      }
+      .remove {
+        color: red;
+        cursor: pointer;
+        text-align: center;
+      }
+
+      /* --- A4 PRINT LAYOUT (THE CORE) --- */
+      #printableArea {
+        width: 210mm;
+        min-height: 297mm;
+        background: white;
+        margin: 0 auto;
+        padding: 10mm; /* Printer Margins */
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(3, auto);
+        gap: 10mm 6mm; /* Gap between cards */
+        justify-items: center;
+      }
+
+      /* --- EXACT CARD DESIGN (54mm x 86mm) --- */
+      .card-wrapper {
+        width: 55mm; /* id card width  */
+        height: 87mm; /* id card height */
+        position: relative;
+        border: 1px dashed #ccc; /* Cutting line */
+      }
+
+      .id-card {
+        width: 100%;
+        height: 100%;
+        background: white;
+        border-radius: 4px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+
+      /* HEADER BLUE BLOCK */
+      .header {
+        background-color: #2c55a3; /* Exact JIT Blue */
+        height: 32%; /* Covers top portion */
+        padding: 3mm;
+        display: flex;
+        align-items: flex-start;
+        gap: 1mm;
+      }
+
+      /* STATIC LOGO STYLING */
+      .logo-img {
+        width: 15mm;
+        height: 15mm;
+
+        border-radius: 50%;
+        padding: 1px;
+        object-fit: contain;
+        margin-top: 0mm;
+      }
+
+      /* COLLEGE NAME */
+      .clg-name {
+        color: white;
+        font-size: 7pt; /* Adjusted to fit nicely */
+        font-weight: 800;
+        text-transform: uppercase;
+        line-height: 1.3;
+        margin-top: 1.5mm;
+      }
+
+      /* PHOTO - OVERLAPPING */
+      .photo-box {
+        width: 24mm;
+        height: 24mm;
+        border-radius: 50%;
+        border: 3px solid white; /* Thick white border like template */
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        top: 20%; /* Positions it half-in half-out of header */
+        z-index: 10;
+        background: #ddd;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .photo-box img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      /* STUDENT DETAILS */
+      .body-content {
+        margin-top: 12mm; /* Pushes text down below photo */
+        text-align: center;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      .s-name {
+        color: #2c55a3;
+        font-weight: 900;
+        font-size: 11pt;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+      }
+      .s-desig {
+        color: #2c55a3;
+        font-weight: 700;
+        font-size: 7.5pt;
+        text-transform: uppercase;
+        margin-bottom: 1px;
+      }
+      .s-dept {
+        color: #2c55a3;
+        font-weight: 700;
+        font-size: 7pt;
+        text-transform: uppercase;
+      }
+
+      /* BARCODE & SIGNATURE */
+      .info-strip {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding: 0 4mm 2mm 4mm;
+      }
+      .bar-box {
+        text-align: center;
+      }
+      .bar-box svg {
+        height: 18px;
+        max-width: 25mm;
+      }
+      .id-txt {
+        font-size: 6.5pt;
+        font-weight: bold;
+        margin-top: -2px;
+      }
+
+      .sign-box {
+        text-align: right;
+      }
+      .sign-img {
+        height: 6mm;
+        width: 15mm;
+        display: block;
+        margin-left: auto;
+      }
+      .auth-txt {
+        font-size: 4.5pt;
+        color: #2c55a3;
+        font-weight: bold;
+      }
+
+      /* FOOTER BLUE BLOCK */
+      .footer {
+        background-color: #2c55a3;
+        color: white;
+        font-size: 5.7pt;
+        padding: 2mm;
+        text-align: center;
+      }
+      .ft-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 1px;
+        padding: 0 2mm;
+      }
+      .ft-ph {
+        font-weight: 500;
+      }
+      .footer i {
+        margin-right: 2px;
+      }
+
+      /* PRINT MEDIA QUERY */
+      @media print {
+        body {
+          padding: 0;
+          background: white;
+        }
+        .controls {
+          display: none;
+        }
+        #printableArea {
+          margin: 0;
+          box-shadow: none;
+          width: 210mm;
+          height: 297mm;
+        }
+        @page {
+          size: A4;
+          margin: 0;
+        }
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="controls">
+      <div class="input-area">
+        <h2>Enter Details (<span id="count">1</span>/9)</h2>
+
+        <div class="input-group" style="margin-bottom: 15px">
+          <label>Student Photo</label>
+          <input type="file" id="photoIn" accept="image/*" />
+        </div>
+
+        <div class="form-row">
+          <div class="input-group">
+            <label>Name</label>
+            <input type="text" id="nameIn" placeholder="RAHUL KUMAR" />
+          </div>
+          <div class="input-group">
+            <label>ID Number</label>
+            <input type="text" id="idIn" placeholder="JIT001" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="input-group">
+            <label>Designation</label>
+            <input type="text" id="desigIn" placeholder="STUDENT" />
+          </div>
+          <div class="input-group">
+            <label>Department</label>
+            <input type="text" id="deptIn" placeholder="CSE" />
+          </div>
+        </div>
+
+        <button class="btn-add" onclick="addCard()">Add Card</button>
+        <button class="btn-reset" onclick="resetList()">Reset All</button>
+      </div>
+
+      <div class="list-area">
+        <h2>Card List</h2>
+        <table id="listTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>X</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <button class="btn-print" onclick="window.print()">
+          Print A4 Sheet
+        </button>
+      </div>
+    </div>
+
+    <div id="printableArea"></div>
+
+    <script>
+      let cards = [];
+      const maxCards = 9;
+
+      // Inputs
+      const nameIn = document.getElementById("nameIn");
+      const idIn = document.getElementById("idIn");
+      const desigIn = document.getElementById("desigIn");
+      const deptIn = document.getElementById("deptIn");
+      const photoIn = document.getElementById("photoIn");
+
+      let currentPhoto = "https://via.placeholder.com/150";
+
+      // Photo Reader
+      photoIn.addEventListener("change", (e) => {
+        if (e.target.files[0]) {
+          const r = new FileReader();
+          r.onload = (evt) => (currentPhoto = evt.target.result);
+          r.readAsDataURL(e.target.files[0]);
+        }
+      });
+
+      function addCard() {
+        if (cards.length >= maxCards) {
+          alert("Sheet Full!");
+          return;
+        }
+
+        cards.push({
+          id: Date.now(),
+          name: nameIn.value || "NAME",
+          idNo: idIn.value || "JIT000",
+          desig: desigIn.value || "",
+          dept: deptIn.value || "",
+          photo: currentPhoto,
+        });
+
+        render();
+
+        // Clear Inputs
+        nameIn.value = "";
+        idIn.value = "";
+        desigIn.value = "";
+        deptIn.value = "";
+        photoIn.value = "";
+        currentPhoto = "https://via.placeholder.com/150";
+        document.getElementById("count").innerText = cards.length + 1;
+      }
+
+      function removeCard(id) {
+        cards = cards.filter((c) => c.id !== id);
+        render();
+        document.getElementById("count").innerText = cards.length + 1;
+      }
+
+      function resetList() {
+        cards = [];
+        render();
+        document.getElementById("count").innerText = 1;
+      }
+
+      function render() {
+        const area = document.getElementById("printableArea");
+        const list = document.querySelector("#listTable tbody");
+        area.innerHTML = "";
+        list.innerHTML = "";
+
+        cards.forEach((c, i) => {
+          // Update List
+          list.innerHTML += `<tr><td>${c.idNo}</td><td>${c.name}</td><td class="remove" onclick="removeCard(${c.id})">✖</td></tr>`;
+
+          // STATIC LOGO PATH is here: src="logo.png"
+          const cardHTML = `
+                <div class="card-wrapper">
+                    <div class="id-card">
+                        <div class="header">
+                            <img src="logo.png" class="logo-img" alt="Logo">
+                            <div class="clg-name">
+                                JAWAHARLAL INSTITUTE<br>OF TECHNOLOGY,<br>BORAWAN
+                            </div>
+                        </div>
+
+                        <div class="photo-box">
+                            <img src="${c.photo}">
+                        </div>
+
+                        <div class="body-content">
+                            <h2 class="s-name">${c.name}</h2>
+                            <h3 class="s-desig">${c.desig}</h3>
+                            <h3 class="s-dept">${c.dept}</h3>
+                        </div>
+
+                        <div class="info-strip">
+                            <div class="bar-box">
+                                <svg class="barcode-${i}"></svg>
+                                <p class="id-txt">${c.idNo}</p>
+                            </div>
+                            <div class="sign-box">
+                                <img src="sign.png" class="sign-img" alt="Sign">
+                                <p class="auth-txt">Issuing Authority</p>
+                            </div>
+                        </div>
+
+                        <div class="footer">
+                            <div class="ft-row">
+                                <span><i class="fas fa-globe"></i> www.jitechno.com</span>
+                                <span><i class="fas fa-envelope"></i> principal@jitechno.com</span>
+                            </div>
+                            <div class="ft-ph">
+                                <i class="fas fa-phone"></i> 9893247793 / 9926039678
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+
+          area.innerHTML += cardHTML;
+
+          // Barcode
+          setTimeout(() => {
+            JsBarcode(`.barcode-${i}`, c.idNo, {
+              format: "CODE128",
+              lineColor: "black",
+              width: 2,
+              height: 20,
+              displayValue: false,
+              background: "transparent",
+              margin: 0,
+            });
+          }, 10);
+        });
+      }
+    </script>
+  </body>
+</html>
+
